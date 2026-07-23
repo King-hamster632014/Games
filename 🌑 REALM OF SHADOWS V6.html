@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Realm of Shadows V6 - Arcane Menagerie</title>
+    <style>
+        :root {
+            --bg: #0d0d12;
+            --panel: #1a1a2e;
+            --accent: #fca311;
+            --hp: #ef476f;
+            --mana: #118ab2;
+            --magic: #bc6ff1;
+            --text: #e0e1dd;
+        }
+
+        body { 
+            background-color: var(--bg); 
+            color: var(--text); 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+
+        #game-container { 
+            background-color: var(--panel); 
+            width: 750px; 
+            padding: 25px; 
+            border-radius: 12px; 
+            border: 1px solid #444;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.7);
+        }
+
+        .stat-bar { 
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 10px; 
+            background: rgba(0,0,0,0.4); 
+            padding: 12px; 
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .sub-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 0 10px 10px 10px;
+            color: #aaa;
+        }
+
+        #text-box { 
+            background: #000; 
+            height: 200px; 
+            padding: 15px; 
+            border-radius: 5px; 
+            overflow-y: auto; 
+            margin-bottom: 20px; 
+            font-family: 'Consolas', monospace; 
+            border: 1px solid #222;
+            font-size: 13px;
+        }
+
+        #controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        button { 
+            padding: 14px; 
+            background: #252535; 
+            color: #fff; 
+            border: 1px solid #444; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        button:hover { background: #3a3a5a; border-color: var(--accent); }
+        button:disabled { opacity: 0.4; }
+
+        .magic-text { color: var(--magic); font-weight: bold; }
+        .heal-text { color: #06d6a0; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h2 style="color:var(--accent); text-align:center; margin-top:0;">🌑 REALM OF SHADOWS V6</h2>
+    
+    <div class="stat-bar">
+        <span>HP: <span id="hp" style="color:var(--hp)">--</span></span>
+        <span>MP: <span id="mana" style="color:var(--mana)">--</span></span>
+        <span>LVL: <span id="lvl">--</span></span>
+        <span>GOLD: <span id="gold" style="color:#ffd166">--</span></span>
+    </div>
+
+    <div class="sub-stats">
+        <span>PET: <span id="pet-name" style="color:var(--accent)">None</span></span>
+        <span>BONUS: <span id="pet-bonus">None</span></span>
+    </div>
+
+    <div id="text-box">Welcome to the Menagerie.</div>
+
+    <div id="controls">
+        <button id="b1"></button>
+        <button id="b2"></button>
+        <button id="b3"></button>
+        <button id="b4"></button>
+    </div>
+</div>
+
+<script>
+    let player = null;
+    let currentMonster = null;
+    let monsterStunned = false;
+
+    const pets = {
+        bat: { name: "Void Bat", bonus: "+25% Gold", desc: "Finds extra shiny things." },
+        turtle: { name: "Stone Turtle", bonus: "+10 Defense", desc: "Hides you under its shell." },
+        phoenix: { name: "Phoenix Chick", bonus: "Post-Battle Heal", desc: "Warms your wounds." }
+    };
+
+    function log(msg, color = "var(--text)") {
+        const box = document.getElementById("text-box");
+        box.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function updateUI() {
+        if (!player) return;
+        document.getElementById("hp").innerText = player.hp;
+        document.getElementById("mana").innerText = player.mana;
+        document.getElementById("lvl").innerText = player.lvl;
+        document.getElementById("gold").innerText = player.gold;
+        document.getElementById("pet-name").innerText = player.pet ? pets[player.pet].name : "None";
+        document.getElementById("pet-bonus").innerText = player.pet ? pets[player.pet].bonus : "None";
+    }
+
+    function setMenu(msg, b1, b2, b3, b4) {
+        log(msg);
+        applyBtn("b1", b1);
+        applyBtn("b2", b2);
+        applyBtn("b3", b3);
+        applyBtn("b4", b4);
+        updateUI();
+    }
+
+    function applyBtn(id, data) {
+        const btn = document.getElementById(id);
+        if (data) {
+            btn.style.display = "block";
+            btn.innerText = data.text;
+            btn.onclick = data.fn;
+        } else {
+            btn.style.display = "none";
+        }
+    }
+
+    // --- GAME FLOW ---
+    function start() {
+        document.getElementById("text-box").innerHTML = "";
+        setMenu("Select your starting class:",
+            { text: "Warrior", fn: () => initPlayer('warrior') },
+            { text: "Mage", fn: () => initPlayer('mage') },
+            { text: "Rogue", fn: () => initPlayer('rogue') },
+            null
+        );
+    }
+
+    function initPlayer(type) {
+        player = {
+            hp: 120, maxHp: 120, mana: 60, maxMana: 60,
+            gold: 50, lvl: 1, pet: null, kills: 0
+        };
+        log(`Welcome, ${type}!`);
+        goStable();
+    }
+
+    function goStable() {
+        setMenu("A strange man offers you a companion pet. Choose one:",
+            { text: "Void Bat (Gold)", fn: () => { player.pet = 'bat'; goTown(); } },
+            { text: "Stone Turtle (Def)", fn: () => { player.pet = 'turtle'; goTown(); } },
+            { text: "Phoenix (Healing)", fn: () => { player.pet = 'phoenix'; goTown(); } },
+            null
+        );
+    }
+
+    function goTown() {
+        currentMonster = null;
+        setMenu("You are in the Shadow Outpost.",
+            { text: "Explore Wilds", fn: goWilds },
+            { text: "Rest (20g)", fn: rest },
+            { text: "Stats Check", fn: () => log(`Level ${player.lvl} | Kills: ${player.kills}`) },
+            { text: "Restart", fn: start }
+        );
+    }
+
+    function goWilds() {
+        setMenu("The forest is dark. A beast approaches!",
+            { text: "Fight!", fn: () => startCombat() },
+            { text: "Go Back", fn: goTown }
+        );
+    }
+
+    function rest() {
+        if (player.gold >= 20) {
+            player.gold -= 20; player.hp = player.maxHp; player.mana = player.maxMana;
+            log("Restored to full power.");
+        } else { log("Too poor to sleep here."); }
+        updateUI();
+    }
+
+    // --- COMBAT ---
+    function startCombat() {
+        currentMonster = { name: "Void Stalker", hp: 50 + (player.lvl * 10), atk: 12 + player.lvl };
+        monsterStunned = false;
+        combatMenu();
+    }
+
+    function combatMenu() {
+        setMenu(`BATTLE: ${currentMonster.name} (${currentMonster.hp} HP)`,
+            { text: "Melee Strike", fn: attack },
+            { text: "Open Spellbook", fn: openSpells },
+            { text: "Flee", fn: goTown },
+            null
+        );
+    }
+
+    function openSpells() {
+        setMenu("Choose a spell to cast:",
+            { text: "Fireball (15m) - High DMG", fn: () => cast('fire') },
+            { text: "Drain (10m) - Heals You", fn: () => cast('drain') },
+            { text: "Freeze (10m) - Stun", fn: () => cast('freeze') },
+            { text: "Back", fn: combatMenu }
+        );
+    }
+
+    function attack() {
+        let dmg = 10 + player.lvl;
+        currentMonster.hp -= dmg;
+        log(`You strike for ${dmg}.`);
+        checkWin();
+    }
+
+    function cast(type) {
+        if (type === 'fire' && player.mana >= 15) {
+            player.mana -= 15; let d = 35 + (player.lvl * 5);
+            currentMonster.hp -= d; log(`FIREBALL! Dealt ${d} damage!`, "var(--magic)");
+        } else if (type === 'drain' && player.mana >= 10) {
+            player.mana -= 10; let d = 15;
+            currentMonster.hp -= d; player.hp = Math.min(player.maxHp, player.hp + 15);
+            log(`Drained ${d} HP from enemy!`, "var(--heal-text)");
+        } else if (type === 'freeze' && player.mana >= 10) {
+            player.mana -= 10; monsterStunned = true;
+            log("Monster is frozen and cannot move!", "var(--mana)");
+        } else {
+            log("Not enough mana!"); return;
+        }
+        checkWin();
+    }
+
+    function checkWin() {
+        if (currentMonster.hp <= 0) {
+            let g = 20;
+            if (player.pet === 'bat') g = Math.floor(g * 1.25);
+            player.gold += g;
+            player.kills++;
+            log(`Victory! Gained ${g} gold.`);
+            
+            if (player.pet === 'phoenix') {
+                player.hp = Math.min(player.maxHp, player.hp + 20);
+                log("Your Phoenix Chick heals you!", "var(--heal-text)");
+            }
+            
+            if (player.kills % 3 === 0) {
+                player.lvl++; log("LEVEL UP! Stats increased.", "var(--accent)");
+            }
+            goTown();
+        } else {
+            monsterTurn();
+        }
+    }
+
+    function monsterTurn() {
+        if (monsterStunned) {
+            log("The monster is frozen and skips its turn!");
+            monsterStunned = false;
+        } else {
+            let def = (player.pet === 'turtle') ? 10 : 0;
+            let dmg = Math.max(2, currentMonster.atk - def);
+            player.hp -= dmg;
+            log(`${currentMonster.name} deals ${dmg} damage.`, "var(--hp)");
+        }
+        if (player.hp <= 0) {
+            alert("Game Over! Try again.");
+            start();
+        } else {
+            combatMenu();
+        }
+    }
+
+    start();
+</script>
+</body>
+</html>

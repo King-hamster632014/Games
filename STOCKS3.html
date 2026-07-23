@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Trading Simulator V3</title>
+<style>
+body { font-family: Arial; background:#0f172a; color:white; text-align:center; }
+h1 { color:#38bdf8; }
+
+.container { display:flex; flex-wrap:wrap; justify-content:center; gap:15px; }
+
+.panel {
+    background:#1e293b;
+    padding:15px;
+    border-radius:10px;
+    width:300px;
+}
+
+button {
+    margin:3px;
+    padding:5px 10px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+.buy { background:#22c55e; }
+.sell { background:#ef4444; }
+.short { background:#f97316; }
+.cover { background:#a78bfa; }
+
+canvas {
+    background:#020617;
+    border-radius:5px;
+}
+
+.news { background:#334155; padding:10px; border-radius:8px; margin:10px; }
+</style>
+</head>
+<body>
+
+<h1>📈 Trading Simulator V3</h1>
+<h2 id="cash"></h2>
+<h3 id="status"></h3>
+<div class="news" id="news">📰 Welcome trader...</div>
+
+<button onclick="togglePause()">⏸️ Pause / Resume</button>
+<button onclick="takeLoan()">💳 Take Loan ($5000)</button>
+
+<div class="container">
+    <div class="panel">
+        <h3>Markets</h3>
+        <div id="market"></div>
+    </div>
+
+    <div class="panel">
+        <h3>📊 Chart</h3>
+        <canvas id="chart" width="280" height="150"></canvas>
+    </div>
+
+    <div class="panel">
+        <h3>Portfolio</h3>
+        <div id="portfolio"></div>
+        <div id="mission"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🤖 AI Traders</h3>
+        <div id="ai"></div>
+    </div>
+</div>
+
+<script>
+let cash = 10000;
+let debt = 0;
+let paused = false;
+let selected = "Bitcoin";
+
+let assets = {
+    Bitcoin:{price:30000, owned:0, short:0, history:[]},
+    Ethereum:{price:2000, owned:0, short:0, history:[]},
+    Tesla:{price:250, owned:0, short:0, history:[]},
+    Apple:{price:180, owned:0, short:0, history:[]},
+    Nvidia:{price:400, owned:0, short:0, history:[]},
+    Solana:{price:100, owned:0, short:0, history:[]}
+};
+
+let aiTraders = [
+    {name:"Bot Alpha", value:10000},
+    {name:"Bot Beta", value:10000}
+];
+
+let mission = { goal:20000, done:false };
+
+function updatePrices(){
+    for(let k in assets){
+        let vol = (Math.random()-0.5)*0.08;
+        if(Math.random()<0.05) vol *= 5; // spike
+        assets[k].price *= (1+vol);
+        assets[k].price = Math.max(1, assets[k].price);
+
+        assets[k].history.push(assets[k].price);
+        if(assets[k].history.length>50) assets[k].history.shift();
+    }
+}
+
+function aiUpdate(){
+    aiTraders.forEach(bot=>{
+        bot.value *= (1 + (Math.random()-0.48)*0.05);
+    });
+}
+
+function drawChart(){
+    let ctx = document.getElementById("chart").getContext("2d");
+    ctx.clearRect(0,0,280,150);
+
+    let hist = assets[selected].history;
+    if(hist.length<2) return;
+
+    let max = Math.max(...hist);
+    let min = Math.min(...hist);
+
+    ctx.beginPath();
+    ctx.strokeStyle="#38bdf8";
+
+    hist.forEach((p,i)=>{
+        let x = i*(280/hist.length);
+        let y = 150 - ((p-min)/(max-min))*140;
+        if(i===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+    });
+
+    ctx.stroke();
+}
+
+function render(){
+    document.getElementById("cash").innerText =
+        "Cash: $" + cash.toFixed(0) + " | Debt: $" + debt;
+
+    let total = cash - debt;
+
+    let marketHTML="";
+    let portHTML="";
+    let aiHTML="";
+
+    for(let k in assets){
+        let a=assets[k];
+        total += a.owned*a.price - a.short*a.price;
+
+        marketHTML += `
+            <div onclick="selected='${k}'">
+            ${k}: $${a.price.toFixed(2)}<br>
+            <button class="buy" onclick="buy('${k}')">Buy</button>
+            <button class="sell" onclick="sell('${k}')">Sell</button>
+            <button class="short" onclick="shortSell('${k}')">Short</button>
+            <button class="cover" onclick="cover('${k}')">Cover</button>
+            </div><hr>
+        `;
+
+        portHTML += `${k}: ${a.owned} | Short: ${a.short}<br>`;
+    }
+
+    aiTraders.forEach(bot=>{
+        aiHTML += `${bot.name}: $${bot.value.toFixed(0)}<br>`;
+    });
+
+    document.getElementById("market").innerHTML = marketHTML;
+    document.getElementById("portfolio").innerHTML = portHTML;
+    document.getElementById("ai").innerHTML = aiHTML;
+
+    // Mission
+    if(!mission.done && total >= mission.goal){
+        mission.done = true;
+        document.getElementById("mission").innerText = "🎯 Mission Complete!";
+    } else {
+        document.getElementById("mission").innerText =
+            "Goal: $" + mission.goal;
+    }
+
+    // Status
+    if(total <= 0){
+        document.getElementById("status").innerText="💀 Game Over";
+    } else {
+        document.getElementById("status").innerText =
+            "Net Worth: $" + total.toFixed(0);
+    }
+
+    drawChart();
+}
+
+function buy(k){
+    let a=assets[k];
+    if(cash>=a.price){
+        a.owned++;
+        cash-=a.price;
+    }
+}
+
+function sell(k){
+    let a=assets[k];
+    if(a.owned>0){
+        a.owned--;
+        cash+=a.price;
+    }
+}
+
+function shortSell(k){
+    let a=assets[k];
+    a.short++;
+    cash+=a.price;
+}
+
+function cover(k){
+    let a=assets[k];
+    if(a.short>0 && cash>=a.price){
+        a.short--;
+        cash-=a.price;
+    }
+}
+
+function takeLoan(){
+    cash+=5000;
+    debt+=5000;
+}
+
+function togglePause(){
+    paused=!paused;
+}
+
+function randomNews(){
+    if(Math.random()<0.15){
+        let events=["🚀 Bull Run!","💥 Crash!","📉 Panic Selling!","📈 Institutional Buying!"];
+        document.getElementById("news").innerText =
+            "📰 " + events[Math.floor(Math.random()*events.length)];
+    }
+}
+
+setInterval(()=>{
+    if(paused) return;
+
+    updatePrices();
+    aiUpdate();
+    randomNews();
+
+    // interest
+    debt *= 1.001;
+
+    render();
+},1500);
+
+render();
+</script>
+
+</body>
+</html>

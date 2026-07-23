@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realm of Shadows V3: The Deepening Dark</title>
+    <style>
+        body {
+            background-color: #0a0a0c;
+            color: #d1d1d1;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #game-container {
+            background-color: #12121f;
+            width: 800px;
+            padding: 30px;
+            border: 1px solid #333447;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+        h1 {
+            text-align: center;
+            color: #ff9e00;
+            margin-top: 0;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-size: 24px;
+        }
+        #stats-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            background: linear-gradient(145deg, #161b33, #0f1224);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #282c4e;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .stat-label { color: #a2a2ba; font-size: 0.9em; }
+        .stat-val { font-weight: bold; }
+        .val-hp { color: #ff4d6d; }
+        .val-mana { color: #00b4d8; }
+        .val-gold { color: #ffea00; }
+        .val-xp { color: #70e000; }
+
+        #text-box {
+            background-color: #050505;
+            height: 220px;
+            padding: 15px;
+            border: 1px solid #222;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.5;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        #monster-stats {
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #2b0d0d;
+            padding: 12px 20px;
+            border-left: 5px solid #9d0208;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        #controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        button {
+            padding: 14px;
+            background-color: #1b263b;
+            color: #e0e1dd;
+            border: 1px solid #415a77;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #415a77;
+            border-color: #778da9;
+            transform: translateY(-1px);
+        }
+        button:active { transform: translateY(1px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .highlight { color: #ff9e00; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>Realm of Shadows V3</h1>
+        
+        <div id="stats-panel">
+            <div>
+                <div class="stat-row"><span class="stat-label">Health</span> <span class="stat-val val-hp"><span id="hp">100</span> / <span id="maxHp">100</span></span></div>
+                <div class="stat-row"><span class="stat-label">Mana</span> <span class="stat-val val-mana"><span id="mana">50</span> / <span id="maxMana">50</span></span></div>
+                <div class="stat-row"><span class="stat-label">Experience</span> <span class="stat-val val-xp"><span id="xp">0</span> / <span id="xpNeeded">50</span></span></div>
+            </div>
+            <div>
+                <div class="stat-row"><span class="stat-label">Wealth</span> <span class="stat-val val-gold"><span id="gold">50</span>g</span></div>
+                <div class="stat-row"><span class="stat-label">Level</span> <span class="stat-val" id="level">1</span></div>
+                <div class="stat-row"><span class="stat-label">Equip</span> <span class="stat-val" style="font-size:0.85em;"><span id="weapon">Stick</span> / <span id="armor">Rags</span></span></div>
+            </div>
+        </div>
+
+        <div id="monster-stats">
+            <span id="monsterName" style="color: #ff4d6d; text-transform: uppercase;"></span>
+            <span style="font-size: 0.9em;">HP: <span id="monsterHp" class="val-hp"></span></span>
+        </div>
+
+        <div id="text-box"></div>
+
+        <div id="controls">
+            <button id="btn1"></button>
+            <button id="btn2"></button>
+            <button id="btn3"></button>
+            <button id="btn4"></button>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME STATE ---
+        let player = {
+            hp: 100, maxHp: 100,
+            mana: 50, maxMana: 50,
+            gold: 60, xp: 0, level: 1, xpNeeded: 50,
+            weaponIndex: 0, armorIndex: 0, potions: 1,
+            floor: 1
+        };
+
+        let currentMonster = null;
+
+        const weapons = [
+            { name: "Stick", power: 6, crit: 0.05, cost: 0 },
+            { name: "Iron Dagger", power: 14, crit: 0.15, cost: 40 },
+            { name: "Steel Sword", power: 28, crit: 0.10, cost: 120 },
+            { name: "Void Reaver", power: 55, crit: 0.25, cost: 350 }
+        ];
+
+        const armors = [
+            { name: "Rags", def: 0, dodge: 0.05, cost: 0 },
+            { name: "Leather Guard", def: 6, dodge: 0.15, cost: 50 },
+            { name: "Platemail", def: 18, dodge: 0.02, cost: 150 },
+            { name: "Shadow Cloak", def: 12, dodge: 0.40, cost: 400 }
+        ];
+
+        const monsterDB = [
+            { name: "Shadow Rat", hp: 30, atk: 8, xp: 15, gold: 10 },
+            { name: "Lost Soul", hp: 50, atk: 15, xp: 30, gold: 25 },
+            { name: "Skeleton Guard", hp: 90, atk: 22, xp: 60, gold: 45 },
+            { name: "Void Horror", hp: 160, atk: 45, xp: 120, gold: 90 },
+            { name: "The Lich", hp: 350, atk: 75, xp: 500, gold: 1000 }
+        ];
+
+        // --- DOM ---
+        const text = document.getElementById("text-box");
+        const monsterBox = document.getElementById("monster-stats");
+
+        function log(msg, color = "#d1d1d1") {
+            text.innerHTML += `<div style="color: ${color}">> ${msg}</div>`;
+            text.scrollTop = text.scrollHeight;
+        }
+
+        function updateUI() {
+            document.getElementById("hp").innerText = player.hp;
+            document.getElementById("maxHp").innerText = player.maxHp;
+            document.getElementById("mana").innerText = player.mana;
+            document.getElementById("maxMana").innerText = player.maxMana;
+            document.getElementById("xp").innerText = player.xp;
+            document.getElementById("xpNeeded").innerText = player.xpNeeded;
+            document.getElementById("gold").innerText = player.gold;
+            document.getElementById("level").innerText = player.level;
+            document.getElementById("weapon").innerText = weapons[player.weaponIndex].name;
+            document.getElementById("armor").innerText = armors[player.armorIndex].name;
+            
+            if (currentMonster) {
+                document.getElementById("monsterHp").innerText = currentMonster.hp;
+                document.getElementById("monsterName").innerText = currentMonster.name;
+            }
+        }
+
+        function setLocation(msg, b1, b2, b3, b4) {
+            monsterBox.style.display = "none";
+            text.innerHTML = `<div>${msg}</div>`;
+            configBtn("btn1", b1);
+            configBtn("btn2", b2);
+            configBtn("btn3", b3);
+            configBtn("btn4", b4);
+            updateUI();
+        }
+
+        function configBtn(id, data) {
+            const btn = document.getElementById(id);
+            if (data) {
+                btn.style.display = "block";
+                btn.innerText = data.text;
+                btn.onclick = data.action;
+            } else {
+                btn.style.display = "none";
+            }
+        }
+
+        // --- NAVIGATION ---
+        function goTown() {
+            currentMonster = null;
+            player.floor = 1;
+            setLocation("You are in the safety of <span class='highlight'>Shadow's End</span>. Low fires burn in the hearths of the stone houses.",
+                { text: "Visit Merchant", action: goStore },
+                { text: "Rest at Inn (25g)", action: rest },
+                { text: "Enter Dungeons", action: goDungeon },
+                { text: "Castle Throne", action: goCastle }
+            );
+        }
+
+        function goStore() {
+            setLocation("The Merchant eyes your gold purse. 'I have the finest steel in the realm.'",
+                { text: "Buy Weapon", action: buyWeapon },
+                { text: "Buy Armor", action: buyArmor },
+                { text: "Potion (20g)", action: buyPotion },
+                { text: "Leave", action: goTown }
+            );
+        }
+
+        function goDungeon() {
+            setLocation(`You descend into the Dungeons. <span class='highlight'>Floor ${player.floor}</span>. The air is damp and cold.`,
+                { text: "Search for Enemy", action: findEnemy },
+                { text: "Go Deeper", action: () => { player.floor++; goDungeon(); } },
+                { text: "Head Back", action: goTown }
+            );
+        }
+
+        function goCastle() {
+            setLocation("The High Castle. Sulfur fills the air. The final test awaits.",
+                { text: "Fight the Lich", action: () => startCombat(4) },
+                { text: "Retreat", action: goTown }
+            );
+        }
+
+        // --- SHOP ---
+        function rest() {
+            if (player.gold >= 25) {
+                player.gold -= 25;
+                player.hp = player.maxHp;
+                player.mana = player.maxMana;
+                log("The bed is hard, but you feel restored.", "#70e000");
+                updateUI();
+            } else { log("The Innkeeper kicks you out. Not enough gold."); }
+        }
+
+        function buyPotion() {
+            if (player.gold >= 20) {
+                player.gold -= 20; player.potions++;
+                log("Bought a potion. Total: " + player.potions, "#ffea00");
+                updateUI();
+            } else { log("Too expensive!"); }
+        }
+
+        function buyWeapon() {
+            let n = player.weaponIndex + 1;
+            if (n < weapons.length && player.gold >= weapons[n].cost) {
+                player.gold -= weapons[n].cost; player.weaponIndex = n;
+                log("Equipped " + weapons[n].name, "#00b4d8");
+                updateUI();
+            } else { log("You cannot afford this or are at max level."); }
+        }
+
+        function buyArmor() {
+            let n = player.armorIndex + 1;
+            if (n < armors.length && player.gold >= armors[n].cost) {
+                player.gold -= armors[n].cost; player.armorIndex = n;
+                log("Equipped " + armors[n].name, "#00b4d8");
+                updateUI();
+            } else { log("You cannot afford this or are at max level."); }
+        }
+
+        // --- COMBAT ---
+        function findEnemy() {
+            // Pick a monster based on floor
+            let index = Math.min(player.floor - 1, 3);
+            startCombat(index);
+        }
+
+        function startCombat(idx) {
+            currentMonster = { ...monsterDB[idx] };
+            // Scale monster slightly by floor
+            currentMonster.hp += (player.floor * 5);
+            currentMonster.atk += player.floor;
+
+            monsterBox.style.display = "flex";
+            setLocation(`The ${currentMonster.name} blocks your path!`,
+                { text: "Strike", action: attack },
+                { text: "Fireball (15m)", action: fireball },
+                { text: "Heal Potion", action: heal },
+                { text: "Flee", action: goTown }
+            );
+        }
+
+        function attack() {
+            let weapon = weapons[player.weaponIndex];
+            let isCrit = Math.random() < weapon.crit;
+            let dmg = weapon.power + Math.floor(Math.random() * player.level);
+            if (isCrit) { dmg *= 2; log("CRITICAL HIT!", "#ff9e00"); }
+
+            currentMonster.hp -= dmg;
+            log(`You hit for ${dmg} damage.`, "#70e000");
+
+            if (currentMonster.hp <= 0) { win(); } else { monsterTurn(); }
+            updateUI();
+        }
+
+        function fireball() {
+            if (player.mana >= 15) {
+                player.mana -= 15;
+                let dmg = 35 + (player.level * 8);
+                currentMonster.hp -= dmg;
+                log(`Fireball incinerates the enemy for ${dmg}!`, "#00b4d8");
+                if (currentMonster.hp <= 0) { win(); } else { monsterTurn(); }
+                updateUI();
+            } else { log("Not enough mana."); }
+        }
+
+        function heal() {
+            if (player.potions > 0) {
+                player.potions--;
+                let amount = 50 + (player.level * 5);
+                player.hp = Math.min(player.maxHp, player.hp + amount);
+                log(`Healed for ${amount}. Potions left: ${player.potions}`, "#ff4d6d");
+                monsterTurn();
+                updateUI();
+            } else { log("Potions empty!"); }
+        }
+
+        function monsterTurn() {
+            let armor = armors[player.armorIndex];
+            if (Math.random() < armor.dodge) {
+                log("You DODGED the attack!", "#00b4d8");
+                return;
+            }
+
+            let dmg = Math.max(1, currentMonster.atk - armor.def);
+            player.hp -= dmg;
+            log(`${currentMonster.name} strikes you for ${dmg}.`, "#ff4d6d");
+
+            if (player.hp <= 0) {
+                alert("The shadows claim your soul. Game Over.");
+                location.reload();
+            }
+        }
+
+        function win() {
+            log(`Victory! +${currentMonster.xp} XP, +${currentMonster.gold} Gold.`, "#ffea00");
+            player.xp += currentMonster.xp;
+            player.gold += currentMonster.gold;
+            if (player.xp >= player.xpNeeded) levelUp();
+            goDungeon();
+        }
+
+        function levelUp() {
+            player.level++;
+            player.xp -= player.xpNeeded;
+            player.xpNeeded = Math.floor(player.xpNeeded * 1.7);
+            player.maxHp += 30;
+            player.maxMana += 15;
+            player.hp = player.maxHp;
+            log(`*** LEVEL UP! You are now level ${player.level} ***`, "#ff9e00");
+        }
+
+        goTown();
+    </script>
+</body>
+</html>

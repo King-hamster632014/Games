@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Realm of Shadows V5 - Forsaken Depths</title>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --panel: #161625;
+            --accent: #fca311;
+            --hp: #ff4d6d;
+            --mana: #00b4d8;
+            --text: #e0e1dd;
+        }
+
+        body { 
+            background-color: var(--bg); 
+            color: var(--text); 
+            font-family: 'Segoe UI', sans-serif; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+
+        #game-container { 
+            background-color: var(--panel); 
+            width: 700px; 
+            padding: 25px; 
+            border-radius: 12px; 
+            border: 1px solid #333;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .stat-bar { 
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px; 
+            background: rgba(0,0,0,0.3); 
+            padding: 12px; 
+            border-radius: 8px;
+            font-size: 14px;
+            border: 1px solid #222;
+        }
+
+        #text-box { 
+            background: #000; 
+            height: 220px; 
+            padding: 15px; 
+            border-radius: 5px; 
+            overflow-y: auto; 
+            margin-bottom: 20px; 
+            font-family: 'Consolas', monospace; 
+            border: 1px solid #222;
+            line-height: 1.5;
+            font-size: 13px;
+        }
+
+        .inventory-panel {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 15px;
+            padding: 5px 10px;
+            border-left: 3px solid var(--accent);
+            background: rgba(252, 163, 17, 0.05);
+        }
+
+        #controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        button { 
+            padding: 15px; 
+            background: #252535; 
+            color: #fff; 
+            border: 1px solid #444; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        button:hover { background: #3a3a5a; border-color: var(--accent); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .crit { color: var(--accent); font-weight: bold; }
+        .dmg { color: var(--hp); }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <h2 style="color:var(--accent); text-align:center; margin-top:0; letter-spacing:2px;">🌑 REALM OF SHADOWS V5</h2>
+    
+    <div class="stat-bar">
+        <span>HP: <span id="hp" style="color:var(--hp)">--</span></span>
+        <span>MP: <span id="mana" style="color:var(--mana)">--</span></span>
+        <span>LVL: <span id="lvl">--</span></span>
+        <span>GOLD: <span id="gold" style="color:#ffd166">--</span></span>
+    </div>
+
+    <div class="inventory-panel">
+        <b>EQUIPMENT:</b> <span id="inv-wep">None</span> | <span id="inv-arm">None</span> | <b>SHARDS:</b> <span id="shards">0</span>
+    </div>
+
+    <div id="text-box">Initialising depths...</div>
+
+    <div id="controls">
+        <button id="b1">...</button>
+        <button id="b2">...</button>
+        <button id="b3">...</button>
+        <button id="b4">...</button>
+    </div>
+</div>
+
+<script>
+    // --- GAME DATA ---
+    let player = null;
+    let currentMonster = null;
+    let skillCooldown = 0;
+
+    const weapons = [
+        { name: "Rusty Spike", pwr: 8, cost: 0 },
+        { name: "Void Blade", pwr: 20, cost: 60 },
+        { name: "Sun-Eater", pwr: 45, cost: 200 }
+    ];
+
+    const armors = [
+        { name: "Cloth Rags", def: 2, cost: 0 },
+        { name: "Chain Vest", def: 10, cost: 80 },
+        { name: "Shadow Plate", def: 25, cost: 250 }
+    ];
+
+    const monsters = [
+        { name: "Crawl-Slug", hp: 40, atk: 10, xp: 20 },
+        { name: "Void Wraith", hp: 100, atk: 25, xp: 50 },
+        { name: "Abyssal Horror", hp: 250, atk: 55, xp: 150 }
+    ];
+
+    // --- ENGINE ---
+    function log(msg, color = "var(--text)") {
+        const box = document.getElementById("text-box");
+        box.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function updateUI() {
+        if (!player) return;
+        document.getElementById("hp").innerText = Math.max(0, player.hp);
+        document.getElementById("mana").innerText = player.mana;
+        document.getElementById("lvl").innerText = player.lvl;
+        document.getElementById("gold").innerText = player.gold;
+        document.getElementById("inv-wep").innerText = weapons[player.wepIdx].name;
+        document.getElementById("inv-arm").innerText = armors[player.armIdx].name;
+        document.getElementById("shards").innerText = player.shards;
+    }
+
+    function setMenu(msg, b1, b2, b3, b4) {
+        log(msg);
+        applyBtn("b1", b1);
+        applyBtn("b2", b2);
+        applyBtn("b3", b3);
+        applyBtn("b4", b4);
+        updateUI();
+    }
+
+    function applyBtn(id, data) {
+        const btn = document.getElementById(id);
+        if (data) {
+            btn.style.display = "block";
+            btn.innerText = data.text;
+            btn.onclick = data.fn;
+            btn.disabled = data.disabled || false;
+        } else {
+            btn.style.display = "none";
+        }
+    }
+
+    // --- GAME MODES ---
+    function start() {
+        document.getElementById("text-box").innerHTML = "";
+        setMenu("Select your starting archetype:",
+            { text: "Warrior (+HP)", fn: () => selectClass('warrior') },
+            { text: "Mage (+Mana)", fn: () => selectClass('mage') },
+            { text: "Rogue (+Gold)", fn: () => selectClass('rogue') }
+        );
+    }
+
+    function selectClass(key) {
+        player = {
+            hp: key === 'warrior' ? 160 : 100,
+            maxHp: key === 'warrior' ? 160 : 100,
+            mana: key === 'mage' ? 100 : 40,
+            maxMana: key === 'mage' ? 100 : 40,
+            gold: key === 'rogue' ? 100 : 40,
+            lvl: 1, xp: 0, shards: 0,
+            wepIdx: 0, armIdx: 0, kills: 0
+        };
+        log(`Chosen: ${key.toUpperCase()}. The depths await.`);
+        goTown();
+    }
+
+    function goTown() {
+        currentMonster = null;
+        skillCooldown = 0;
+        setMenu("You are in the safety of the Shadow Outpost.",
+            { text: "Venture Out", fn: goWilds },
+            { text: "Marketplace", fn: goShop },
+            { text: "Rest (20g)", fn: rest },
+            { text: "Instructions", fn: () => log("Kill monsters to earn gold. Buy better gear. Collect shards for permanent power.") }
+        );
+    }
+
+    function goShop() {
+        setMenu("The merchant taps his coin pouch.",
+            { text: `Buy ${weapons[Math.min(player.wepIdx+1, 2)].name}`, fn: buyWep },
+            { text: `Buy ${armors[Math.min(player.armIdx+1, 2)].name}`, fn: buyArm },
+            { text: "Back to Outpost", fn: goTown }
+        );
+    }
+
+    function goWilds() {
+        setMenu("The darkness feels heavier here.",
+            { text: "Common Hunt", fn: () => startCombat(0) },
+            { text: "Deep Hunt", fn: () => startCombat(1) },
+            { text: "Boss Lair", fn: () => startCombat(2) },
+            { text: "Return", fn: goTown }
+        );
+    }
+
+    // --- ACTIONS ---
+    function rest() {
+        if (player.gold >= 20) {
+            player.gold -= 20; player.hp = player.maxHp; player.mana = player.maxMana;
+            log("Health and Mana restored.", "var(--mana)");
+            updateUI();
+        } else { log("Insufficient gold."); }
+    }
+
+    function buyWep() {
+        let n = player.wepIdx + 1;
+        if (n < weapons.length && player.gold >= weapons[n].cost) {
+            player.gold -= weapons[n].cost; player.wepIdx = n;
+            log("Weapon Upgraded!", "var(--accent)"); goTown();
+        } else { log("Cannot purchase."); }
+    }
+
+    function buyArm() {
+        let n = player.armIdx + 1;
+        if (n < armors.length && player.gold >= armors[n].cost) {
+            player.gold -= armors[n].cost; player.armIdx = n;
+            log("Armor Upgraded!", "var(--accent)"); goTown();
+        } else { log("Cannot purchase."); }
+    }
+
+    // --- COMBAT ---
+    function startCombat(idx) {
+        currentMonster = { ...monsters[idx] };
+        // Scaling
+        currentMonster.hp += (player.kills * 5);
+        currentMonster.atk += Math.floor(player.kills / 2);
+        
+        combatTurn();
+    }
+
+    function combatTurn() {
+        let skillText = skillCooldown > 0 ? `Skill (CD: ${skillCooldown})` : "Special Skill (15m)";
+        setMenu(`Battle: ${currentMonster.name} (HP: ${currentMonster.hp})`,
+            { text: "Attack", fn: attack },
+            { text: skillText, fn: specialSkill, disabled: skillCooldown > 0 || player.mana < 15 },
+            { text: "Flee", fn: goTown }
+        );
+    }
+
+    function attack() {
+        let dmg = weapons[player.wepIdx].pwr + player.shards + Math.floor(Math.random() * 5);
+        currentMonster.hp -= dmg;
+        log(`You hit for <span class="dmg">${dmg}</span>.`);
+        if (skillCooldown > 0) skillCooldown--;
+        
+        if (currentMonster.hp <= 0) win();
+        else monsterTurn();
+    }
+
+    function specialSkill() {
+        player.mana -= 15;
+        skillCooldown = 3;
+        let dmg = (weapons[player.wepIdx].pwr * 2.5) + player.shards;
+        currentMonster.hp -= Math.floor(dmg);
+        log(`SPECIAL ATTACK! Dealt <span class="crit">${Math.floor(dmg)}</span> damage!`, "var(--accent)");
+        
+        if (currentMonster.hp <= 0) win();
+        else monsterTurn();
+    }
+
+    function monsterTurn() {
+        let dmg = Math.max(1, currentMonster.atk - armors[player.armIdx].def);
+        player.hp -= dmg;
+        log(`${currentMonster.name} deals ${dmg} to you.`, "var(--hp)");
+        
+        if (player.hp <= 0) {
+            alert("DEFEATED. The depths have taken you.");
+            start();
+        } else {
+            combatTurn();
+        }
+    }
+
+    function win() {
+        let g = 10 + Math.floor(Math.random() * 20) + (player.kills * 2);
+        player.gold += g;
+        player.kills++;
+        
+        // Random Shard drop (10% chance)
+        if (Math.random() > 0.9) {
+            player.shards++;
+            log("Looted a <span class='crit'>SHADOW SHARD</span>! (+1 Perm Damage)", "var(--accent)");
+        }
+
+        log(`Victory! Found ${g} gold.`);
+        goTown();
+    }
+
+    start();
+</script>
+</body>
+</html>

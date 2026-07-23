@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Trading Simulator V2</title>
+<style>
+body {
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+}
+h1 { color: #38bdf8; }
+
+.container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.panel {
+    background: #1e293b;
+    padding: 15px;
+    border-radius: 10px;
+    width: 280px;
+}
+
+button {
+    margin: 3px;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.buy { background: #22c55e; }
+.sell { background: #ef4444; }
+
+.bar {
+    height: 6px;
+    background: #38bdf8;
+    margin: 2px 0;
+}
+
+.news {
+    background: #334155;
+    padding: 10px;
+    border-radius: 8px;
+    margin: 10px;
+}
+</style>
+</head>
+<body>
+
+<h1>📈 Trading Simulator V2</h1>
+<h2 id="cash"></h2>
+<h3 id="status"></h3>
+
+<div class="news" id="news">📰 Market is calm...</div>
+
+<div class="container">
+    <div class="panel">
+        <h3>💰 Crypto</h3>
+        <div id="crypto"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🏦 Stocks</h3>
+        <div id="stocks"></div>
+    </div>
+
+    <div class="panel">
+        <h3>📊 Portfolio</h3>
+        <div id="portfolio"></div>
+        <button onclick="saveGame()">💾 Save</button>
+        <button onclick="loadGame()">📂 Load</button>
+    </div>
+</div>
+
+<script>
+let cash = 10000;
+let trend = 0; // -1 bear, 1 bull
+
+let assets = {
+    "Bitcoin": { price: 30000, owned: 0, history: [] },
+    "Ethereum": { price: 2000, owned: 0, history: [] },
+    "Tesla": { price: 250, owned: 0, history: [] },
+    "Apple": { price: 180, owned: 0, history: [] }
+};
+
+const newsEvents = [
+    { text: "🚀 Crypto surge!", effect: 0.2, type: "crypto" },
+    { text: "💥 Market crash!", effect: -0.25, type: "all" },
+    { text: "📈 Tech boom!", effect: 0.15, type: "stocks" },
+    { text: "⚠️ Regulation fears!", effect: -0.2, type: "crypto" }
+];
+
+function randomNews() {
+    if (Math.random() < 0.2) {
+        let event = newsEvents[Math.floor(Math.random()*newsEvents.length)];
+        document.getElementById("news").innerText = "📰 " + event.text;
+
+        for (let key in assets) {
+            if (event.type === "all" ||
+               (event.type === "crypto" && (key==="Bitcoin"||key==="Ethereum")) ||
+               (event.type === "stocks" && (key==="Tesla"||key==="Apple"))) {
+                assets[key].price *= (1 + event.effect);
+            }
+        }
+    }
+}
+
+function updateTrend() {
+    if (Math.random() < 0.1) {
+        trend = Math.random() < 0.5 ? -1 : 1;
+    }
+}
+
+function updatePrices() {
+    for (let key in assets) {
+        let base = (Math.random() - 0.5) * 0.05;
+        let trendBoost = trend * 0.02;
+        assets[key].price *= (1 + base + trendBoost);
+
+        assets[key].price = Math.max(1, assets[key].price);
+
+        assets[key].history.push(assets[key].price);
+        if (assets[key].history.length > 20) {
+            assets[key].history.shift();
+        }
+    }
+}
+
+function renderBars(history) {
+    return history.map(p => `<div class="bar" style="width:${p/100}px"></div>`).join("");
+}
+
+function render() {
+    document.getElementById("cash").innerText = "Cash: $" + cash.toFixed(2);
+
+    let total = cash;
+    let cryptoHTML = "";
+    let stockHTML = "";
+    let portfolioHTML = "";
+
+    for (let key in assets) {
+        let a = assets[key];
+        total += a.price * a.owned;
+
+        let html = `
+            <div>
+                ${key}: $${a.price.toFixed(2)}<br>
+                ${renderBars(a.history)}
+                <button class="buy" onclick="buy('${key}')">Buy</button>
+                <button class="sell" onclick="sell('${key}')">Sell</button>
+            </div><hr>
+        `;
+
+        if (key === "Bitcoin" || key === "Ethereum") cryptoHTML += html;
+        else stockHTML += html;
+
+        portfolioHTML += `${key}: ${a.owned}<br>`;
+    }
+
+    document.getElementById("crypto").innerHTML = cryptoHTML;
+    document.getElementById("stocks").innerHTML = stockHTML;
+    document.getElementById("portfolio").innerHTML = portfolioHTML;
+
+    // Win / Lose
+    if (total >= 50000) {
+        document.getElementById("status").innerText = "🏆 You Win!";
+    } else if (cash <= 0 && total < 1000) {
+        document.getElementById("status").innerText = "💀 Bankrupt!";
+    } else {
+        document.getElementById("status").innerText = "Net Worth: $" + total.toFixed(2);
+    }
+}
+
+function buy(name) {
+    let a = assets[name];
+    if (cash >= a.price) {
+        a.owned++;
+        cash -= a.price;
+    }
+}
+
+function sell(name) {
+    let a = assets[name];
+    if (a.owned > 0) {
+        a.owned--;
+        cash += a.price;
+    }
+}
+
+function saveGame() {
+    localStorage.setItem("tradingGame", JSON.stringify({cash, assets}));
+    alert("Game saved!");
+}
+
+function loadGame() {
+    let data = JSON.parse(localStorage.getItem("tradingGame"));
+    if (data) {
+        cash = data.cash;
+        assets = data.assets;
+        alert("Game loaded!");
+    }
+}
+
+// Game loop
+setInterval(() => {
+    updateTrend();
+    updatePrices();
+    randomNews();
+    render();
+}, 2000);
+
+render();
+</script>
+
+</body>
+</html>

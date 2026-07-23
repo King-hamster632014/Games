@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Trading Simulator V4</title>
+<style>
+body { font-family: Arial; background:#0f172a; color:white; text-align:center; }
+h1 { color:#38bdf8; }
+
+.container { display:flex; flex-wrap:wrap; justify-content:center; gap:15px; }
+
+.panel {
+    background:#1e293b;
+    padding:15px;
+    border-radius:10px;
+    width:300px;
+}
+
+button {
+    margin:3px;
+    padding:5px 10px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+.buy { background:#22c55e; }
+.sell { background:#ef4444; }
+.short { background:#f97316; }
+.cover { background:#a78bfa; }
+
+canvas { background:#020617; border-radius:5px; }
+
+.news { background:#334155; padding:10px; border-radius:8px; margin:10px; }
+</style>
+</head>
+<body>
+
+<h1>📈 Trading Simulator V4</h1>
+<h2 id="cash"></h2>
+<h3 id="status"></h3>
+
+<div class="news" id="news">📰 Global markets opening...</div>
+
+<div>
+<button onclick="togglePause()">⏸️ Pause</button>
+<button onclick="setSpeed(1)">1x</button>
+<button onclick="setSpeed(2)">2x</button>
+<button onclick="setSpeed(5)">5x</button>
+</div>
+
+<div class="container">
+    <div class="panel">
+        <h3>Markets</h3>
+        <div id="market"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🕯️ Chart</h3>
+        <canvas id="chart" width="280" height="150"></canvas>
+    </div>
+
+    <div class="panel">
+        <h3>Portfolio</h3>
+        <div id="portfolio"></div>
+        <div id="missions"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🤖 Hedge Funds</h3>
+        <div id="ai"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🏆 Leaderboard</h3>
+        <div id="leaderboard"></div>
+    </div>
+</div>
+
+<script>
+let cash = 10000, debt=0, paused=false, speed=1;
+let selected="Bitcoin";
+
+let economy = { interest:0.001, inflation:0.002 };
+
+let assets = {
+Bitcoin:{price:30000, owned:0, short:0, candles:[]},
+Ethereum:{price:2000, owned:0, short:0, candles:[]},
+Tesla:{price:250, owned:0, short:0, candles:[]},
+Apple:{price:180, owned:0, short:0, candles:[]}
+};
+
+let aiTraders=[
+{name:"Hedge Alpha", value:10000},
+{name:"Quantum Fund", value:10000}
+];
+
+let missions=[
+{goal:20000, done:false},
+{goal:50000, done:false}
+];
+
+function updateEconomy(){
+    if(Math.random()<0.1){
+        economy.interest = (Math.random()*0.003);
+        economy.inflation = (Math.random()*0.004);
+    }
+}
+
+function updatePrices(){
+    for(let k in assets){
+        let a=assets[k];
+
+        let open=a.price;
+        let change=(Math.random()-0.5)*0.05;
+
+        change -= economy.interest;
+        change += economy.inflation;
+
+        let close=open*(1+change);
+        let high=Math.max(open,close)*(1+Math.random()*0.02);
+        let low=Math.min(open,close)*(1-Math.random()*0.02);
+
+        a.price=close;
+
+        a.candles.push({open,high,low,close});
+        if(a.candles.length>30) a.candles.shift();
+    }
+}
+
+function drawChart(){
+    let ctx=document.getElementById("chart").getContext("2d");
+    ctx.clearRect(0,0,280,150);
+
+    let c=assets[selected].candles;
+    if(c.length<2) return;
+
+    let max=Math.max(...c.map(x=>x.high));
+    let min=Math.min(...c.map(x=>x.low));
+
+    c.forEach((d,i)=>{
+        let x=i*(280/c.length)+2;
+        let scale=(v)=>150-((v-min)/(max-min))*140;
+
+        ctx.strokeStyle="white";
+        ctx.beginPath();
+        ctx.moveTo(x,scale(d.high));
+        ctx.lineTo(x,scale(d.low));
+        ctx.stroke();
+
+        ctx.fillStyle=d.close>d.open?"#22c55e":"#ef4444";
+        ctx.fillRect(x-2, scale(Math.max(d.open,d.close)),4,
+            Math.abs(scale(d.open)-scale(d.close)));
+    });
+}
+
+function aiUpdate(){
+    aiTraders.forEach(bot=>{
+        let trend=Math.random()-0.45;
+        bot.value *= (1+trend*0.05);
+    });
+}
+
+function render(){
+    let total=cash-debt;
+
+    let mHTML="",pHTML="",aiHTML="",lbHTML="",missionHTML="";
+
+    for(let k in assets){
+        let a=assets[k];
+        total+=a.owned*a.price - a.short*a.price;
+
+        mHTML+=`
+        <div onclick="selected='${k}'">
+        ${k}: $${a.price.toFixed(2)}<br>
+        <button class="buy" onclick="buy('${k}')">Buy</button>
+        <button class="sell" onclick="sell('${k}')">Sell</button>
+        <button class="short" onclick="shortSell('${k}')">Short</button>
+        <button class="cover" onclick="cover('${k}')">Cover</button>
+        </div><hr>`;
+
+        pHTML+=`${k}: ${a.owned} | Short:${a.short}<br>`;
+    }
+
+    aiTraders.forEach(bot=>{
+        aiHTML+=`${bot.name}: $${bot.value.toFixed(0)}<br>`;
+    });
+
+    let leaderboard=[{name:"You",value:total},...aiTraders];
+    leaderboard.sort((a,b)=>b.value-a.value);
+
+    leaderboard.forEach(l=>{
+        lbHTML+=`${l.name}: $${l.value.toFixed(0)}<br>`;
+    });
+
+    missions.forEach(m=>{
+        if(!m.done && total>=m.goal) m.done=true;
+        missionHTML+= m.done?`✅ ${m.goal}<br>`:`🎯 ${m.goal}<br>`;
+    });
+
+    document.getElementById("cash").innerText =
+        `Cash:$${cash.toFixed(0)} Debt:$${debt.toFixed(0)}`;
+
+    document.getElementById("status").innerText =
+        total<=0?"💀 Game Over":`Net Worth:$${total.toFixed(0)}`;
+
+    document.getElementById("market").innerHTML=mHTML;
+    document.getElementById("portfolio").innerHTML=pHTML;
+    document.getElementById("ai").innerHTML=aiHTML;
+    document.getElementById("leaderboard").innerHTML=lbHTML;
+    document.getElementById("missions").innerHTML=missionHTML;
+
+    drawChart();
+}
+
+function buy(k){ let a=assets[k]; if(cash>=a.price){a.owned++;cash-=a.price;} }
+function sell(k){ let a=assets[k]; if(a.owned>0){a.owned--;cash+=a.price;} }
+function shortSell(k){ let a=assets[k]; a.short++; cash+=a.price; }
+function cover(k){ let a=assets[k]; if(a.short>0&&cash>=a.price){a.short--;cash-=a.price;} }
+
+function togglePause(){ paused=!paused; }
+function setSpeed(s){ speed=s; }
+
+function autoSave(){
+    localStorage.setItem("v4save", JSON.stringify({cash,debt,assets}));
+}
+
+function load(){
+    let d=JSON.parse(localStorage.getItem("v4save"));
+    if(d){cash=d.cash; debt=d.debt; assets=d.assets;}
+}
+
+function news(){
+    if(Math.random()<0.15){
+        let e=["🏦 Rate Hike","💸 Stimulus","📉 Recession","🚀 Growth Boom"];
+        document.getElementById("news").innerText="📰 "+e[Math.floor(Math.random()*e.length)];
+    }
+}
+
+load();
+
+setInterval(()=>{
+    if(paused) return;
+
+    for(let i=0;i<speed;i++){
+        updateEconomy();
+        updatePrices();
+        aiUpdate();
+        news();
+        debt*=1.001;
+    }
+
+    autoSave();
+    render();
+},1500);
+
+render();
+</script>
+
+</body>
+</html>

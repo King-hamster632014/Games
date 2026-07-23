@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Fake Minecraft</title>
+<style>
+body { margin:0; overflow:hidden; font-family:sans-serif; }
+#ui{
+position:fixed;
+top:10px;
+left:10px;
+color:white;
+background:rgba(0,0,0,0.5);
+padding:10px;
+}
+</style>
+</head>
+<body>
+
+<div id="ui">
+Fake Minecraft<br>
+WASD = Move<br>
+Mouse = Look<br>
+Left Click = Break<br>
+Right Click = Place
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight,0.1,1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth,window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const light = new THREE.DirectionalLight(0xffffff,1);
+light.position.set(10,20,10);
+scene.add(light);
+
+const ambient = new THREE.AmbientLight(0xaaaaaa);
+scene.add(ambient);
+
+const blockGeo = new THREE.BoxGeometry(1,1,1);
+const blockMat = new THREE.MeshLambertMaterial({color:0x44aa44});
+
+let blocks = [];
+
+function createBlock(x,y,z){
+const cube = new THREE.Mesh(blockGeo,blockMat.clone());
+cube.position.set(x,y,z);
+scene.add(cube);
+blocks.push(cube);
+}
+
+for(let x=-10;x<10;x++){
+for(let z=-10;z<10;z++){
+createBlock(x,0,z);
+}
+}
+
+camera.position.set(0,2,5);
+
+let keys = {};
+document.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+document.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+let velocity = new THREE.Vector3();
+
+function move(){
+const speed = 0.1;
+
+if(keys["w"]) velocity.z=-speed;
+if(keys["s"]) velocity.z=speed;
+if(keys["a"]) velocity.x=-speed;
+if(keys["d"]) velocity.x=speed;
+
+camera.translateX(velocity.x);
+camera.translateZ(velocity.z);
+
+velocity.set(0,0,0);
+}
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener("click",e=>{
+mouse.x = (e.clientX/window.innerWidth)*2-1;
+mouse.y = -(e.clientY/window.innerHeight)*2+1;
+
+raycaster.setFromCamera(mouse,camera);
+const intersects = raycaster.intersectObjects(blocks);
+
+if(intersects.length>0){
+const block = intersects[0].object;
+scene.remove(block);
+blocks.splice(blocks.indexOf(block),1);
+}
+});
+
+window.addEventListener("contextmenu",e=>{
+e.preventDefault();
+
+mouse.x = (e.clientX/window.innerWidth)*2-1;
+mouse.y = -(e.clientY/window.innerHeight)*2+1;
+
+raycaster.setFromCamera(mouse,camera);
+const intersects = raycaster.intersectObjects(blocks);
+
+if(intersects.length>0){
+const p = intersects[0].point;
+createBlock(
+Math.round(p.x),
+Math.round(p.y)+1,
+Math.round(p.z)
+);
+}
+});
+
+function animate(){
+requestAnimationFrame(animate);
+move();
+renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener("resize",()=>{
+camera.aspect = window.innerWidth/window.innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+
+</body>
+</html>

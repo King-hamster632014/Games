@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Trading Simulator V5</title>
+<style>
+body { font-family: Arial; background:#0f172a; color:white; text-align:center; }
+h1 { color:#38bdf8; }
+
+.container { display:flex; flex-wrap:wrap; justify-content:center; gap:15px; }
+
+.panel {
+    background:#1e293b;
+    padding:15px;
+    border-radius:10px;
+    width:300px;
+}
+
+button {
+    margin:3px;
+    padding:5px 10px;
+    border:none;
+    border-radius:5px;
+    cursor:pointer;
+}
+
+.buy { background:#22c55e; }
+.sell { background:#ef4444; }
+.short { background:#f97316; }
+
+canvas { background:#020617; border-radius:5px; }
+.news { background:#334155; padding:10px; border-radius:8px; margin:10px; }
+</style>
+</head>
+<body>
+
+<h1>📈 Trading Simulator V5</h1>
+<h2 id="stats"></h2>
+<h3 id="status"></h3>
+
+<div class="news" id="news">📰 Welcome to global markets...</div>
+
+<div>
+<button onclick="voteRate(0.0005)">⬇️ Cut Rates</button>
+<button onclick="voteRate(0.002)">⬆️ Raise Rates</button>
+</div>
+
+<div class="container">
+
+<div class="panel">
+<h3>Markets</h3>
+<div id="market"></div>
+</div>
+
+<div class="panel">
+<h3>📊 Chart + Indicators</h3>
+<canvas id="chart" width="280" height="150"></canvas>
+</div>
+
+<div class="panel">
+<h3>Portfolio</h3>
+<div id="portfolio"></div>
+</div>
+
+<div class="panel">
+<h3>Career</h3>
+<div id="career"></div>
+</div>
+
+</div>
+
+<script>
+let cash=10000, debt=0, level=1, xp=0;
+let selected="Bitcoin";
+
+let economy={interest:0.001};
+
+let assets={
+Bitcoin:{price:30000, owned:0, history:[], stop:null, take:null},
+Ethereum:{price:2000, owned:0, history:[], stop:null, take:null},
+Tesla:{price:250, owned:0, history:[], stop:null, take:null}
+};
+
+function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+
+function RSI(hist){
+    if(hist.length<10) return 50;
+    let gains=0, losses=0;
+    for(let i=1;i<hist.length;i++){
+        let d=hist[i]-hist[i-1];
+        if(d>0) gains+=d; else losses-=d;
+    }
+    let rs=gains/(losses||1);
+    return 100-(100/(1+rs));
+}
+
+function updatePrices(){
+    for(let k in assets){
+        let a=assets[k];
+
+        let playerImpact=(Math.random()-0.5)*0.02;
+        let npcImpact=(Math.random()-0.5)*0.05;
+
+        let change=playerImpact+npcImpact - economy.interest;
+
+        a.price*= (1+change);
+        a.price=Math.max(1,a.price);
+
+        a.history.push(a.price);
+        if(a.history.length>50) a.history.shift();
+
+        // stop-loss / take-profit
+        if(a.stop && a.price<=a.stop && a.owned>0){
+            cash+=a.price; a.owned--;
+        }
+        if(a.take && a.price>=a.take && a.owned>0){
+            cash+=a.price; a.owned--;
+        }
+    }
+}
+
+function aiReact(){
+    // reacts to YOUR trades
+    if(Math.random()<0.3){
+        for(let k in assets){
+            assets[k].price *= (1 + (Math.random()-0.45)*0.03);
+        }
+    }
+}
+
+function drawChart(){
+    let ctx=document.getElementById("chart").getContext("2d");
+    ctx.clearRect(0,0,280,150);
+
+    let h=assets[selected].history;
+    if(h.length<2) return;
+
+    let max=Math.max(...h);
+    let min=Math.min(...h);
+
+    ctx.strokeStyle="#38bdf8";
+    ctx.beginPath();
+
+    h.forEach((p,i)=>{
+        let x=i*(280/h.length);
+        let y=150-((p-min)/(max-min))*140;
+        if(i===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // Moving Average
+    let ma=[];
+    for(let i=5;i<h.length;i++){
+        ma.push(avg(h.slice(i-5,i)));
+    }
+
+    ctx.strokeStyle="yellow";
+    ctx.beginPath();
+    ma.forEach((p,i)=>{
+        let x=(i+5)*(280/h.length);
+        let y=150-((p-min)/(max-min))*140;
+        if(i===0) ctx.moveTo(x,y);
+        else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+}
+
+function render(){
+    let total=cash-debt;
+
+    let mHTML="",pHTML="";
+
+    for(let k in assets){
+        let a=assets[k];
+        total+=a.price*a.owned;
+
+        let rsi=RSI(a.history).toFixed(0);
+
+        mHTML+=`
+        <div onclick="selected='${k}'">
+        ${k}: $${a.price.toFixed(2)} (RSI:${rsi})<br>
+        <button class="buy" onclick="buy('${k}')">Buy</button>
+        <button class="sell" onclick="sell('${k}')">Sell</button>
+        <button onclick="setSL('${k}')">SL</button>
+        <button onclick="setTP('${k}')">TP</button>
+        </div><hr>`;
+
+        pHTML+=`${k}: ${a.owned}<br>`;
+    }
+
+    document.getElementById("market").innerHTML=mHTML;
+    document.getElementById("portfolio").innerHTML=pHTML;
+
+    document.getElementById("stats").innerText =
+        `Cash:$${cash.toFixed(0)} Debt:$${debt.toFixed(0)} Level:${level}`;
+
+    document.getElementById("status").innerText =
+        total<=0?"💀 Liquidated":`Net Worth:$${total.toFixed(0)}`;
+
+    // career
+    xp += total*0.0001;
+    if(xp>100){ level++; xp=0; }
+
+    document.getElementById("career").innerText =
+        "Level "+level+" | XP "+xp.toFixed(0);
+
+    drawChart();
+}
+
+function buy(k){
+    let a=assets[k];
+    if(cash>=a.price){
+        a.owned++; cash-=a.price;
+    }
+}
+
+function sell(k){
+    let a=assets[k];
+    if(a.owned>0){
+        a.owned--; cash+=a.price;
+    }
+}
+
+function setSL(k){
+    let p=prompt("Stop-loss price:");
+    assets[k].stop=parseFloat(p);
+}
+
+function setTP(k){
+    let p=prompt("Take-profit price:");
+    assets[k].take=parseFloat(p);
+}
+
+function voteRate(r){
+    economy.interest=r;
+}
+
+function news(){
+    if(Math.random()<0.2){
+        let n=[
+        "🏦 Central bank shock!",
+        "🚀 Crypto hype!",
+        "📉 Market fear!",
+        "💼 Big money entering!"
+        ];
+        document.getElementById("news").innerText =
+            "📰 "+n[Math.floor(Math.random()*n.length)];
+    }
+}
+
+function save(){
+    localStorage.setItem("v5", JSON.stringify({cash,debt,assets,level}));
+}
+function load(){
+    let d=JSON.parse(localStorage.getItem("v5"));
+    if(d){cash=d.cash; debt=d.debt; assets=d.assets; level=d.level;}
+}
+
+load();
+
+setInterval(()=>{
+    updatePrices();
+    aiReact();
+    news();
+
+    debt*=1.001;
+
+    save();
+    render();
+},1500);
+
+render();
+</script>
+
+</body>
+</html>

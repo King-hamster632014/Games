@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro JS FPS</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #222;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #555;
+            background-color: #333;
+            cursor: crosshair;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        #ui {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .instructions {
+            color: #aaa;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2 style="margin-bottom: 5px;">RETRO BLASTER</h2>
+    <canvas id="gameCanvas" width="640" height="400"></canvas>
+    
+    <div id="ui">
+        <strong>Score: <span id="score">0</span></strong> | 
+        <strong>Health: <span id="health">100</span>%</strong>
+        <div class="instructions">
+            <strong>W/S</strong>: Move Forward/Back | <strong>A/D</strong>: Turn Left/Right | <strong>CLICK</strong>: Shoot
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const healthEl = document.getElementById('health');
+
+        // Game State
+        let score = 0;
+        let health = 100;
+        let isShooting = false;
+        
+        // Map (1 = Wall, 0 = Empty)
+        const mapSize = 10;
+        const map = [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,1,0,0,1],
+            [1,0,1,1,0,0,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,1,1,1,0,0,1],
+            [1,0,1,0,0,0,1,0,0,1],
+            [1,0,1,1,1,0,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,1,0,1,1,0,1,1,0,1],
+            [1,1,1,1,1,1,1,1,1,1]
+        ];
+
+        // Player
+        const player = {
+            x: 1.5, 
+            y: 1.5, 
+            dir: 0, // Angle in radians
+            fov: Math.PI / 3, // 60 degrees
+            moveSpeed: 0.08,
+            rotSpeed: 0.05
+        };
+
+        // Bot (Enemy)
+        const bot = {
+            x: 8.5,
+            y: 8.5,
+            state: 'alive', // 'alive' or 'dead'
+            respawnTimer: 0
+        };
+
+        // Input tracking
+        const keys = { w: false, a: false, s: false, d: false };
+
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) keys[key] = false;
+        });
+
+        canvas.addEventListener('mousedown', () => {
+            if (!isShooting) {
+                isShooting = true;
+                shootGun();
+                setTimeout(() => isShooting = false, 200); // Gun cooldown
+            }
+        });
+
+        // Game Loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            if (health <= 0) {
+                alert(`Game Over! Final Score: ${score}`);
+                health = 100;
+                score = 0;
+                player.x = 1.5; player.y = 1.5;
+                bot.x = 8.5; bot.y = 8.5;
+                healthEl.innerText = health;
+                scoreEl.innerText = score;
+            }
+
+            // Player Rotation
+            if (keys.a) player.dir -= player.rotSpeed;
+            if (keys.d) player.dir += player.rotSpeed;
+
+            // Player Movement (with collision)
+            let dx = Math.cos(player.dir) * player.moveSpeed;
+            let dy = Math.sin(player.dir) * player.moveSpeed;
+
+            if (keys.w) {
+                if (map[Math.floor(player.y)][Math.floor(player.x + dx)] === 0) player.x += dx;
+                if (map[Math.floor(player.y + dy)][Math.floor(player.x)] === 0) player.y += dy;
+            }
+            if (keys.s) {
+                if (map[Math.floor(player.y)][Math.floor(player.x - dx)] === 0) player.x -= dx;
+                if (map[Math.floor(player.y - dy)][Math.floor(player.x)] === 0) player.y -= dy;
+            }
+
+            // Bot Logic
+            if (bot.state === 'alive') {
+                // Move bot towards player
+                let bdx = player.x - bot.x;
+                let bdy = player.y - bot.y;
+                let dist = Math.sqrt(bdx*bdx + bdy*bdy);
+                
+                if (dist > 0.5) { // Don't merge into player
+                    let moveX = (bdx / dist) * 0.02;
+                    let moveY = (bdy / dist) * 0.02;
+                    
+                    // Simple collision for bot
+                    if (map[Math.floor(bot.y)][Math.floor(bot.x + moveX)] === 0) bot.x += moveX;
+                    if (map[Math.floor(bot.y + moveY)][Math.floor(bot.x)] === 0) bot.y += moveY;
+                }
+
+                // Bot attacks player if close enough
+                if (dist < 1.5 && Math.random() < 0.05) {
+                    health -= 5;
+                    healthEl.innerText = health;
+                    // Flash screen red
+                    ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            } else {
+                bot.respawnTimer--;
+                if (bot.respawnTimer <= 0) {
+                    // Respawn bot in a random empty spot
+                    let spawned = false;
+                    while(!spawned) {
+                        let rx = Math.floor(Math.random() * mapSize);
+                        let ry = Math.floor(Math.random() * mapSize);
+                        if (map[ry][rx] === 0 && Math.abs(rx - player.x) > 2) {
+                            bot.x = rx + 0.5;
+                            bot.y = ry + 0.5;
+                            bot.state = 'alive';
+                            spawned = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        function shootGun() {
+            if (bot.state !== 'alive') return;
+
+            // Calculate angle to bot
+            let dx = bot.x - player.x;
+            let dy = bot.y - player.y;
+            let angleToBot = Math.atan2(dy, dx);
+            let dist = Math.sqrt(dx*dx + dy*dy);
+
+            // Normalize angle difference to check if bot is in crosshairs
+            let angleDiff = angleToBot - player.dir;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+            while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+
+            // If bot is roughly in the center of the screen and no walls are blocking
+            if (Math.abs

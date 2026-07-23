@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Advanced Parkour Game</title>
+<style>
+body{
+margin:0;
+overflow:hidden;
+background:#111;
+font-family:Arial;
+}
+canvas{
+display:block;
+margin:auto;
+background:#1a1a1a;
+}
+</style>
+</head>
+
+<body>
+
+<canvas id="game" width="900" height="500"></canvas>
+
+<script>
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let gravity = 0.6;
+let cameraX = 0;
+
+let score = 0;
+let checkpointX = 100;
+
+let keys = {};
+
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+let player = {
+x:100,
+y:300,
+w:30,
+h:30,
+vx:0,
+vy:0,
+speed:5,
+jump:12,
+grounded:false,
+wall:false
+};
+
+let platforms = [
+{x:0,y:450,w:2000,h:50},
+
+{x:200,y:380,w:120,h:20},
+{x:400,y:320,w:120,h:20},
+{x:600,y:260,w:120,h:20},
+
+{x:850,y:350,w:120,h:20,move:true,start:850,end:1050,dir:1},
+{x:1100,y:300,w:120,h:20},
+{x:1300,y:260,w:120,h:20},
+
+{x:1600,y:320,w:120,h:20,move:true,start:1600,end:1800,dir:1}
+];
+
+let coins = [
+{x:230,y:340,collected:false},
+{x:430,y:280,collected:false},
+{x:630,y:220,collected:false},
+{x:1150,y:260,collected:false},
+{x:1650,y:280,collected:false}
+];
+
+let enemies = [
+{x:500,y:420,w:30,h:30,dir:1,start:450,end:650},
+{x:1400,y:420,w:30,h:30,dir:1,start:1350,end:1550}
+];
+
+let checkpoints = [
+{x:750,y:410},
+{x:1500,y:410}
+];
+
+function update(){
+
+if(keys["a"] || keys["ArrowLeft"]) player.vx=-player.speed;
+else if(keys["d"] || keys["ArrowRight"]) player.vx=player.speed;
+else player.vx=0;
+
+if((keys[" "] || keys["w"] || keys["ArrowUp"])){
+
+if(player.grounded){
+player.vy=-player.jump;
+player.grounded=false;
+}
+
+else if(player.wall){
+player.vy=-player.jump;
+player.vx*=-1;
+}
+
+}
+
+player.vy+=gravity;
+
+player.x+=player.vx;
+player.y+=player.vy;
+
+player.grounded=false;
+player.wall=false;
+
+for(let p of platforms){
+
+if(p.move){
+p.x+=p.dir*2;
+if(p.x<p.start || p.x>p.end) p.dir*=-1;
+}
+
+if(player.x<p.x+p.w &&
+player.x+player.w>p.x &&
+player.y<p.y+p.h &&
+player.y+player.h>p.y){
+
+if(player.vy>0){
+player.y=p.y-player.h;
+player.vy=0;
+player.grounded=true;
+}
+
+else{
+player.wall=true;
+}
+
+}
+
+}
+
+for(let c of coins){
+
+if(!c.collected &&
+player.x<c.x+20 &&
+player.x+player.w>c.x &&
+player.y<c.y+20 &&
+player.y+player.h>c.y){
+
+c.collected=true;
+score++;
+}
+
+}
+
+for(let e of enemies){
+
+e.x+=e.dir*2;
+if(e.x<e.start || e.x>e.end) e.dir*=-1;
+
+if(player.x<e.x+e.w &&
+player.x+player.w>e.x &&
+player.y<e.y+e.h &&
+player.y+player.h>e.y){
+
+player.x=checkpointX;
+player.y=300;
+player.vx=0;
+player.vy=0;
+
+}
+
+}
+
+for(let cp of checkpoints){
+
+if(player.x>cp.x){
+checkpointX=cp.x;
+}
+
+}
+
+cameraX = player.x - 200;
+
+if(player.y>canvas.height){
+player.x=checkpointX;
+player.y=300;
+player.vy=0;
+}
+
+}
+
+function draw(){
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ctx.save();
+ctx.translate(-cameraX,0);
+
+ctx.fillStyle="white";
+for(let p of platforms){
+ctx.fillRect(p.x,p.y,p.w,p.h);
+}
+
+ctx.fillStyle="gold";
+for(let c of coins){
+if(!c.collected)
+ctx.fillRect(c.x,c.y,20,20);
+}
+
+ctx.fillStyle="red";
+for(let e of enemies){
+ctx.fillRect(e.x,e.y,e.w,e.h);
+}
+
+ctx.fillStyle="cyan";
+for(let cp of checkpoints){
+ctx.fillRect(cp.x,cp.y,10,40);
+}
+
+ctx.fillStyle="lime";
+ctx.fillRect(player.x,player.y,player.w,player.h);
+
+ctx.restore();
+
+ctx.fillStyle="white";
+ctx.font="20px Arial";
+ctx.fillText("Coins: "+score,20,30);
+
+}
+
+function loop(){
+update();
+draw();
+requestAnimationFrame(loop);
+}
+
+loop();
+
+</script>
+
+</body>
+</html>

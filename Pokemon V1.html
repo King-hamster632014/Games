@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Mini Pokémon Game</title>
+<style>
+body {
+margin: 0;
+font-family: Arial;
+background: #222;
+color: white;
+text-align: center;
+}
+
+#game {
+width: 400px;
+height: 400px;
+margin: 20px auto;
+background: #4caf50;
+position: relative;
+border: 4px solid black;
+}
+
+.player {
+width: 20px;
+height: 20px;
+background: blue;
+position: absolute;
+}
+
+#battle {
+display: none;
+background: #111;
+padding: 20px;
+}
+
+button {
+padding: 10px;
+margin: 5px;
+cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<h1>Mini Pokémon Game</h1>
+
+<div id="game">
+<div id="player" class="player"></div>
+</div>
+
+<div id="battle">
+<h2 id="enemyName"></h2>
+<p id="enemyHP"></p>
+<p id="playerHP"></p>
+
+<button onclick="attack()">Attack</button>
+<button onclick="run()">Run</button>
+</div>
+
+<script>
+let player = document.getElementById("player");
+let game = document.getElementById("game");
+let battleUI = document.getElementById("battle");
+
+let x = 180;
+let y = 180;
+
+let inBattle = false;
+
+let playerHP = 100;
+let enemyHP = 0;
+let enemyName = "";
+
+const enemies = [
+{name: "Slimechu", hp: 30},
+{name: "Flametail", hp: 40},
+{name: "Leafy", hp: 35}
+];
+
+function updatePlayer() {
+player.style.left = x + "px";
+player.style.top = y + "px";
+}
+
+document.addEventListener("keydown", (e) => {
+if (inBattle) return;
+
+if (e.key === "ArrowUp") y -= 10;
+if (e.key === "ArrowDown") y += 10;
+if (e.key === "ArrowLeft") x -= 10;
+if (e.key === "ArrowRight") x += 10;
+
+// Boundaries
+x = Math.max(0, Math.min(380, x));
+y = Math.max(0, Math.min(380, y));
+
+updatePlayer();
+
+// Random encounter
+if (Math.random() < 0.1) {
+startBattle();
+}
+});
+
+function startBattle() {
+inBattle = true;
+game.style.display = "none";
+battleUI.style.display = "block";
+
+let enemy = enemies[Math.floor(Math.random() * enemies.length)];
+enemyHP = enemy.hp;
+enemyName = enemy.name;
+
+updateBattle();
+}
+
+function updateBattle() {
+document.getElementById("enemyName").innerText = enemyName;
+document.getElementById("enemyHP").innerText = "Enemy HP: " + enemyHP;
+document.getElementById("playerHP").innerText = "Your HP: " + playerHP;
+}
+
+function attack() {
+let damage = Math.floor(Math.random() * 10) + 5;
+enemyHP -= damage;
+
+if (enemyHP <= 0) {
+alert("You defeated " + enemyName + "!");
+endBattle();
+return;
+}
+
+enemyAttack();
+updateBattle();
+}
+
+function enemyAttack() {
+let damage = Math.floor(Math.random() * 8) + 3;
+playerHP -= damage;
+
+if (playerHP <= 0) {
+alert("You fainted! Game Over.");
+location.reload();
+}
+}
+
+function run() {
+if (Math.random() < 0.5) {
+alert("You escaped!");
+endBattle();
+} else {
+alert("Couldn't escape!");
+enemyAttack();
+updateBattle();
+}
+}
+
+function endBattle() {
+inBattle = false;
+game.style.display = "block";
+battleUI.style.display = "none";
+}
+
+updatePlayer();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Trading Simulator</title>
+<style>
+body {
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+}
+h1 {
+    color: #38bdf8;
+}
+.container {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+}
+.panel {
+    background: #1e293b;
+    padding: 20px;
+    border-radius: 10px;
+    width: 300px;
+}
+button {
+    padding: 5px 10px;
+    margin: 5px;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+}
+.buy { background: #22c55e; }
+.sell { background: #ef4444; }
+</style>
+</head>
+<body>
+
+<h1>📈 Trading Simulator</h1>
+<h2 id="cash"></h2>
+
+<div class="container">
+    <div class="panel">
+        <h3>💰 Crypto</h3>
+        <div id="crypto"></div>
+    </div>
+
+    <div class="panel">
+        <h3>🏦 Stocks</h3>
+        <div id="stocks"></div>
+    </div>
+
+    <div class="panel">
+        <h3>📊 Portfolio</h3>
+        <div id="portfolio"></div>
+    </div>
+</div>
+
+<script>
+let cash = 10000;
+
+let assets = {
+    "Bitcoin": { price: 30000, owned: 0 },
+    "Ethereum": { price: 2000, owned: 0 },
+    "Tesla": { price: 250, owned: 0 },
+    "Apple": { price: 180, owned: 0 }
+};
+
+function updatePrices() {
+    for (let key in assets) {
+        let change = (Math.random() - 0.5) * 0.1; // ±10%
+        assets[key].price *= (1 + change);
+        assets[key].price = Math.max(1, assets[key].price);
+    }
+}
+
+function render() {
+    document.getElementById("cash").innerText = "Cash: $" + cash.toFixed(2);
+
+    let cryptoHTML = "";
+    let stockHTML = "";
+    let portfolioHTML = "";
+
+    for (let key in assets) {
+        let item = assets[key];
+
+        let html = `
+            <div>
+                ${key}: $${item.price.toFixed(2)}<br>
+                <button class="buy" onclick="buy('${key}')">Buy</button>
+                <button class="sell" onclick="sell('${key}')">Sell</button>
+            </div><hr>
+        `;
+
+        if (key === "Bitcoin" || key === "Ethereum") {
+            cryptoHTML += html;
+        } else {
+            stockHTML += html;
+        }
+
+        portfolioHTML += `${key}: ${item.owned}<br>`;
+    }
+
+    document.getElementById("crypto").innerHTML = cryptoHTML;
+    document.getElementById("stocks").innerHTML = stockHTML;
+    document.getElementById("portfolio").innerHTML = portfolioHTML;
+}
+
+function buy(name) {
+    let asset = assets[name];
+    if (cash >= asset.price) {
+        asset.owned++;
+        cash -= asset.price;
+        render();
+    } else {
+        alert("Not enough cash!");
+    }
+}
+
+function sell(name) {
+    let asset = assets[name];
+    if (asset.owned > 0) {
+        asset.owned--;
+        cash += asset.price;
+        render();
+    } else {
+        alert("You don't own any!");
+    }
+}
+
+// Game loop
+setInterval(() => {
+    updatePrices();
+    render();
+}, 2000);
+
+// Initial render
+render();
+</script>
+
+</body>
+</html>

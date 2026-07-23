@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catch the Falling Objects</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .game-container {
+            width: 800px;
+            max-width: 95%;
+            text-align: center;
+        }
+
+        .header {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00dbde, #fc00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            font-size: 1.2em;
+            margin-top: 15px;
+        }
+
+        .stat {
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+        }
+
+        .game-area {
+            position: relative;
+            width: 100%;
+            height: 500px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 20px;
+        }
+
+        #player {
+            position: absolute;
+            bottom: 20px;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(45deg, #00b4db, #0083b0);
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(0, 180, 219, 0.5);
+            transition: all 0.1s ease;
+        }
+
+        .falling-object {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            box-shadow: 0 0 15px currentColor;
+        }
+
+        .good-object {
+            background: linear-gradient(45deg, #00ff87, #00b4db);
+        }
+
+        .bad-object {
+            background: linear-gradient(45deg, #ff416c, #ff4b2b);
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 1.1em;
+            background: linear-gradient(45deg, #00dbde, #fc00ff);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        @media (max-width: 600px) {
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            button {
+                width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>Catch the Falling Objects</h1>
+            <div class="stats">
+                <div class="stat">Score: <span id="score">0</span></div>
+                <div class="stat">Lives: <span id="lives">3</span></div>
+                <div class="stat">Level: <span id="level">1</span></div>
+                <div class="stat">Speed: <span id="speed">1x</span></div>
+            </div>
+        </div>
+
+        <div class="game-area" id="gameArea">
+            <div id="player"></div>
+            <div class="game-over" id="gameOver">
+                <h2>Game Over!</h2>
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <button onclick="resetGame()">Play Again</button>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="moveLeft()">← Move Left</button>
+            <button onclick="moveRight()">→ Move Right</button>
+            <button onclick="togglePause()" id="pauseBtn">Pause</button>
+            <button onclick="resetGame()">Restart</button>
+        </div>
+
+        <div class="instructions">
+            <p><strong>How to Play:</strong> Use left/right buttons or arrow keys to move the player. Catch green objects (+10 points) and avoid red objects (-1 life). Each level increases speed!</p>
+        </div>
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const gameArea = document.getElementById('gameArea');
+        const scoreElement = document.getElementById('score');
+        const livesElement = document.getElementById('lives');
+        const levelElement = document.getElementById('level');
+        const speedElement = document.getElementById('speed');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const pauseBtn = document.getElementById('pauseBtn');
+
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        let speed = 1;
+        let gameRunning = true;
+        let isPaused = false;
+        let playerPosition = gameArea.offsetWidth / 2 - 40;
+        let gameLoop;
+        let objectInterval;
+
+        function updatePlayerPosition() {
+            player.style.left = playerPosition + 'px';
+        }
+
+        function moveLeft() {
+            if (!gameRunning || isPaused) return;
+            playerPosition = Math.max(0, playerPosition - 20);
+            updatePlayerPosition();
+        }
+
+        function moveRight() {
+            if (!gameRunning || isPaused) return;
+            playerPosition = Math.min(gameArea.offsetWidth - 80, playerPosition + 20);
+            updatePlayerPosition();
+        }
+
+        function createFallingObject() {
+            if (!gameRunning || isPaused) return;
+
+            const object = document.createElement('div');
+            const isGood = Math.random() > 0.3; // 70% good objects
+            const objectType = isGood ? 'good-object' : 'bad-object';
+            
+            object.className = `falling-object ${objectType}`;
+            object.style.left = Math.random() * (gameArea.offsetWidth - 40) + 'px';
+            object.style.top = '-40px';
+            
+            gameArea.appendChild(object);
+
+            let objectTop = -40;
+            const fallSpeed = 3 + (level * 0.5);
+
+            function fall() {
+                if (!gameRunning || isPaused) return;
+
+                objectTop += fallSpeed;
+                object.style.top = objectTop + 'px';
+
+                // Check collision
+                const playerRect = player.getBoundingClientRect();
+                const objectRect = object.getBoundingClientRect();
+                const gameAreaRect = gameArea.getBoundingClientRect();
+
+                if (objectTop > gameArea.offsetHeight) {
+                    object.remove();
+                    return;
+                }
+
+                // Collision detection
+                if (objectTop + 40 > playerRect.top - gameAreaRect.top &&
+                    objectTop < playerRect.bottom - gameAreaRect.top &&
+                    parseInt(object.style.left) + 20 > playerRect.left - gameAreaRect.left &&
+                    parseInt(object.style.left) < playerRect.right - gameAreaRect.left) {
+                    
+                    object.remove();
+                    
+                    if (isGood) {
+                        score += 10;
+                        if (score % 100 === 0) {
+                            levelUp();
+                        }
+                    } else {
+                        lives--;
+                        if (lives <= 0) {
+                            gameOver();
+                            return;
+                        }
+                    }
+                    
+                    updateStats();
+                    return;
+                }
+
+                if (objectTop < gameArea.offsetHeight) {
+                    requestAnimationFrame(fall);
+                } else {
+                    object.remove();
+                }
+            }
+
+            requestAnimationFrame(fall);
+        }
+
+        function levelUp() {
+            level++;
+            speed = level;
+            clearInterval(objectInterval);
+            objectInterval = setInterval(createFallingObject, Math.max(200, 1000 - (level * 100)));
+            updateStats();
+        }
+
+        function updateStats() {
+            scoreElement.textContent = score;
+            livesElement.textContent = lives;
+            levelElement.textContent = level;
+            speedElement.textContent = speed + 'x';
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            clearInterval(objectInterval);
+            finalScoreElement.textContent = score;
+            gameOverScreen.style.display = 'block';
+        }
+
+        function resetGame() {
+            score = 0;
+            lives = 3;
+            level = 1;
+            speed = 1;
+            gameRunning = true;
+            isPaused = false;
+            
+            // Clear all falling objects
+            document.querySelectorAll('.falling-object').forEach(obj => obj.remove());
+            
+            // Reset player position
+            playerPosition = gameArea.offsetWidth / 2 - 40;
+            updatePlayerPosition();
+            
+            // Update UI
+            updateStats();
+            gameOverScreen.style.display = 'none';
+            pauseBtn.textContent = 'Pause';
+            
+            // Restart game loop
+            startGame();
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+            
+            if (!isPaused && gameRunning) {
+                startGame();
+            }
+        }
+
+        function startGame() {
+            clearInterval(objectInterval);
+            
+            if (gameRunning && !isPaused) {
+                objectInterval = setInterval(createFallingObject, Math.max(200, 1000 - (level * 100)));
+                
+                gameLoop = setInterval(() => {
+                    if (!gameRunning || isPaused) {
+                        clearInterval(gameLoop);
+                    }
+                }, 1000 / 60);
+            }
+        }
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') moveLeft();
+            if (e.key === 'ArrowRight') moveRight();
+            if (e.key === ' ') togglePause();
+        });
+
+        // Initialize game
+        updatePlayerPosition();
+        startGame();
+    </script>
+</body>
+</html>

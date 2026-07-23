@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>INSANE Pokémon Game</title>
+
+<style>
+body { margin:0; background:#111; color:white; font-family:Arial; text-align:center; }
+
+#game {
+  width: 512px;
+  height: 512px;
+  margin: 10px auto;
+  display: grid;
+  grid-template-columns: repeat(16, 32px);
+  grid-template-rows: repeat(16, 32px);
+  border: 4px solid black;
+}
+
+.tile { width:32px; height:32px; }
+.grass { background:#3cb043; }
+.path { background:#c2b280; }
+.water { background:#3399ff; }
+.wall { background:#555; }
+
+.player { background: blue; }
+
+#battle {
+  display:none;
+  width:512px;
+  margin:auto;
+  background:#000;
+  padding:10px;
+}
+
+.bar { height:10px; background:red; margin:5px 0; }
+
+#text { height:80px; overflow-y:auto; background:#111; padding:5px; font-size:13px; }
+
+button { padding:8px; margin:4px; }
+</style>
+</head>
+
+<body>
+
+<h2>INSANE Pokémon Game</h2>
+
+<div id="game"></div>
+
+<div id="battle">
+  <h3 id="enemyName"></h3>
+
+  Enemy HP:
+  <div class="bar" id="enemyBar"></div>
+
+  Your HP:
+  <div class="bar" id="playerBar"></div>
+
+  <div id="text"></div>
+
+  <button onclick="attack()">Attack</button>
+  <button onclick="special()">Special</button>
+  <button onclick="catchMon()">Catch</button>
+  <button onclick="usePotion()">Potion</button>
+  <button onclick="run()">Run</button>
+</div>
+
+<script>
+const game = document.getElementById("game");
+const battleUI = document.getElementById("battle");
+const textBox = document.getElementById("text");
+
+let size = 16;
+let playerPos = 120;
+
+let player = {
+  hp: 100,
+  maxHp: 100,
+  xp: 0,
+  level: 1,
+  balls: 5,
+  potions: 2
+};
+
+let enemy = {};
+let inBattle = false;
+
+// SOUND
+function beep(freq){
+  let ctx = new AudioContext();
+  let osc = ctx.createOscillator();
+  osc.frequency.value = freq;
+  osc.connect(ctx.destination);
+  osc.start();
+  setTimeout(()=>osc.stop(),100);
+}
+
+// MAP
+let map = [];
+for(let i=0;i<size*size;i++){
+  let rand = Math.random();
+  let tile = document.createElement("div");
+  tile.classList.add("tile");
+
+  if(rand<0.5){ tile.classList.add("grass"); map.push("grass"); }
+  else if(rand<0.7){ tile.classList.add("path"); map.push("path"); }
+  else if(rand<0.9){ tile.classList.add("water"); map.push("water"); }
+  else{ tile.classList.add("wall"); map.push("wall"); }
+
+  game.appendChild(tile);
+}
+
+function draw(){
+  [...game.children].forEach((t,i)=>{
+    t.classList.remove("player");
+    if(i===playerPos) t.classList.add("player");
+  });
+}
+draw();
+
+// MOVEMENT
+document.addEventListener("keydown", e=>{
+  if(inBattle) return;
+
+  let row=Math.floor(playerPos/size);
+  let col=playerPos%size;
+  let next=playerPos;
+
+  if(e.key==="w"||e.key==="ArrowUp") next-=size;
+  if(e.key==="s"||e.key==="ArrowDown") next+=size;
+  if(e.key==="a"||e.key==="ArrowLeft") next-=1;
+  if(e.key==="d"||e.key==="ArrowRight") next+=1;
+
+  if(next<0||next>=size*size) return;
+  if(map[next]==="wall"||map[next]==="water") return;
+
+  playerPos=next;
+  draw();
+
+  if(map[playerPos]==="grass" && Math.random()<0.2){
+    startBattle();
+  }
+});
+
+// ENEMIES
+const enemies=[
+  {name:"Zaplet",hp:50},
+  {name:"Burnox",hp:60},
+  {name:"Aquava",hp:55}
+];
+
+function log(t){
+  textBox.innerHTML+=t+"<br>";
+  textBox.scrollTop=textBox.scrollHeight;
+}
+
+// BATTLE
+function startBattle(){
+  inBattle=true;
+  game.style.display="none";
+  battleUI.style.display="block";
+
+  enemy={...enemies[Math.floor(Math.random()*enemies.length)]};
+  enemy.maxHp=enemy.hp;
+
+  textBox.innerHTML="";
+  log("Wild "+enemy.name+" appeared!");
+  updateBars();
+  document.getElementById("enemyName").innerText=enemy.name;
+}
+
+function updateBars(){
+  document.getElementById("enemyBar").style.width=(enemy.hp/enemy.maxHp*100)+"%";
+  document.getElementById("playerBar").style.width=(player.hp/player.maxHp*100)+"%";
+}
+
+function attack(){
+  let dmg=Math.floor(Math.random()*10)+5;
+  enemy.hp-=dmg;
+  beep(400);
+  log("You hit "+dmg);
+
+  if(enemy.hp<=0){ win(); return; }
+
+  enemyTurn();
+  updateBars();
+}
+
+function special(){
+  let dmg=Math.floor(Math.random()*20)+10;
+  enemy.hp-=dmg;
+  beep(800);
+  log("SPECIAL hit "+dmg);
+
+  if(enemy.hp<=0){ win(); return; }
+
+  enemyTurn();
+  updateBars();
+}
+
+function enemyTurn(){
+  let dmg=Math.floor(Math.random()*8)+4;
+  player.hp-=dmg;
+  beep(200);
+  log(enemy.name+" hits "+dmg);
+
+  if(player.hp<=0){
+    log("You fainted!");
+    setTimeout(()=>location.reload(),1500);
+  }
+}
+
+function catchMon(){
+  if(player.balls<=0){ log("No balls!"); return; }
+  player.balls--;
+
+  let chance = (enemy.maxHp-enemy.hp)/enemy.maxHp;
+
+  if(Math.random()<chance){
+    log("You caught "+enemy.name+"!");
+    beep(1000);
+    endBattle();
+  }else{
+    log("Break free!");
+    enemyTurn();
+    updateBars();
+  }
+}
+
+function usePotion(){
+  if(player.potions<=0){ log("No potions!"); return; }
+  player.potions--;
+  player.hp=Math.min(player.maxHp,player.hp+30);
+  log("Healed!");
+  updateBars();
+  enemyTurn();
+}
+
+function run(){
+  if(Math.random()<0.5){
+    log("Escaped!");
+    endBattle();
+  }else{
+    log("Failed!");
+    enemyTurn();
+    updateBars();
+  }
+}
+
+function win(){
+  log("You defeated "+enemy.name);
+  player.xp+=20;
+
+  if(player.xp>=50){
+    player.level++;
+    player.xp=0;
+    player.maxHp+=20;
+    player.hp=player.maxHp;
+    log("LEVEL UP! Now Lv."+player.level);
+  }
+
+  setTimeout(endBattle,1000);
+}
+
+function endBattle(){
+  inBattle=false;
+  battleUI.style.display="none";
+  game.style.display="grid";
+}
+</script>
+
+</body>
+</html>
